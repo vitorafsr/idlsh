@@ -7,17 +7,23 @@ import subprocess
 import os
 import select
 import time
+import string
 
-idl_cmds = {'print':None, 'indgen':None}
+# idl cmds for tab completion
+idl_cmds = {'print':None, 'indgen':None, '.compile':None, 'help':None, 'ptrarr':None, 'online_help':None}
+idl_exe = '/home/vitor/workspace/rsi/idl_6.3/bin/idl'
 
+#TODO: fill 'idl_cmds' with idl cmds
+#TODO: see how to include cmds with a dot at the beginning for tab completion
 
+# initialize readline with customized tab completion support
 readline.parse_and_bind("tab: complete")
 rl = rlcompleter.Completer(idl_cmds)
 readline.set_completer(rl.complete)
 
+# init idl as subprocess and communicate with it through pty
 (master, slave) = pty.openpty()
-f = open('idl.log', 'w')
-p = subprocess.Popen(['/home/vitor/workspace/rsi/idl_6.3/bin/idl'], close_fds=True, shell=False, stdin=slave, stdout=slave, stderr=f)
+p = subprocess.Popen([idl_exe], close_fds=True, shell=False, stdin=slave, stdout=slave, stderr=slave)
 
 
 def write_idl(input):
@@ -27,19 +33,49 @@ def write_idl(input):
 def read_idl():
 	output = ''
 
-	r, w, e = select.select([master], [], [], 0.01)
+	r, w, e = select.select([master], [], [], 0.05) # check for available output
 	while r != []:
-		output += os.read(master, 10)
-		r, w, e = select.select([master], [], [], 0.01)
+		output += os.read(master, 10) # blocking read
+		r, w, e = select.select([master], [], [], 0.05) # check for available output
 
 	return output
 
 
+def handle_input(input):
 
-time.sleep(0.5) # wait idl initialize
+	if input is None:
+		return ''
 
+	# check executive command
+	if input.lstrip().startswith('.'): # executive cmd
+		return None #TODO: treat executive command accordingly
+
+	return input
+
+
+def handle_output(output):
+	osl = output.splitlines()
+	#osl[0] is IDL echo of input sent through stderr
+	#osl[len(osl)-2] is IDL prompt ('IDL> ') sent through stderr
+	#osl[len(osl)-1] is IDL prompt ('IDL> ') sent through stderr
+
+	ho = osl[1:len(osl)-2] # handled output
+	po = string.join(ho).strip() # partial output
+
+	#TODO: customize output text
+
+	return po + '\n'
+
+
+ # wait idl initialize
+time.sleep(0.3)
+
+# read any initial output
 sys.stdout.write(read_idl())
+sys.stdout.write('\n')
 sys.stdout.flush()
+
+#TODO: read headline from stderr
 
 c = True
 while c:
@@ -49,12 +85,19 @@ while c:
 		input = raw_input("IDL> ")
 	except:
 		write_idl('exit')
+		print 'exit'
 		p.wait()
 		c = False
 
-	if input:
+	input = handle_input(input)
+
+	if len(input) > 0:
 		write_idl(input)
-		sys.stdout.write(read_idl())
+		output = read_idl()
+
+		output = handle_output(output)
+		
+		sys.stdout.write(output)
 		sys.stdout.flush()
 
 		if input == 'exit':
@@ -62,4 +105,3 @@ while c:
 			c = False
 
 print '' # line feed
-f.close()
