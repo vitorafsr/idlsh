@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+import readline
+import rlcompleter
+import sys
+import pty
+import subprocess
+import os
+import select
+import time
+
+idl_cmds = {'print':None, 'indgen':None}
+
+
+readline.parse_and_bind("tab: complete")
+rl = rlcompleter.Completer(idl_cmds)
+readline.set_completer(rl.complete)
+
+(master, slave) = pty.openpty()
+f = open('idl.log', 'w')
+p = subprocess.Popen(['/home/vitor/workspace/rsi/idl_6.3/bin/idl'], close_fds=True, shell=False, stdin=slave, stdout=slave, stderr=f)
+
+
+def write_idl(input):
+	os.write(master, input + '\r\n')
+
+
+def read_idl():
+	output = ''
+
+	r, w, e = select.select([master], [], [], 0.01)
+	while r != []:
+		output += os.read(master, 10)
+		r, w, e = select.select([master], [], [], 0.01)
+
+	return output
+
+
+
+time.sleep(0.5) # wait idl initialize
+
+sys.stdout.write(read_idl())
+sys.stdout.flush()
+
+c = True
+while c:
+	input = None
+
+	try:
+		input = raw_input("IDL> ")
+	except:
+		write_idl('exit')
+		p.wait()
+		c = False
+
+	if input:
+		write_idl(input)
+		sys.stdout.write(read_idl())
+		sys.stdout.flush()
+
+		if input == 'exit':
+			p.wait()
+			c = False
+
+print '' # line feed
+f.close()
