@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import readline
-import rlcompleter
 import sys
 import pty
 import subprocess
@@ -10,16 +9,30 @@ import time
 import string
 
 # idl cmds for tab completion
-idl_cmds = {'print':None, 'indgen':None, '.compile':None, 'help':None, 'ptrarr':None, 'online_help':None}
+idl_cmds = [
+	'print',
+	'indgen',
+	'.compile',
+	'help',
+	'ptrarr',
+	'online_help']
+
 idl_exe = '/home/vitor/workspace/rsi/idl_6.3/bin/idl'
+
+
+def completer(text, state):
+	options = [i for i in idl_cmds if i.startswith(text)]
+	if state < len(options):
+		return options[state]
+
+	return None
 
 #TODO: fill 'idl_cmds' with idl cmds
 #TODO: see how to include cmds with a dot at the beginning for tab completion
 
 # initialize readline with customized tab completion support
 readline.parse_and_bind("tab: complete")
-rl = rlcompleter.Completer(idl_cmds)
-readline.set_completer(rl.complete)
+readline.set_completer(completer)
 
 # init idl as subprocess and communicate with it through pty
 (master, slave) = pty.openpty()
@@ -60,7 +73,7 @@ def handle_output(output):
 	#osl[len(osl)-1] is IDL prompt ('IDL> ') sent through stderr
 
 	ho = osl[1:len(osl)-2] # handled output
-	po = string.join(ho).strip() # partial output
+	po = string.join(ho, '\n') # partial output
 
 	#TODO: customize output text
 
@@ -74,8 +87,6 @@ time.sleep(0.3)
 sys.stdout.write(read_idl())
 sys.stdout.write('\n')
 sys.stdout.flush()
-
-#TODO: read headline from stderr
 
 c = True
 while c:
