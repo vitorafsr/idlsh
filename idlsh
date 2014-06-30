@@ -16,10 +16,11 @@ idl_cmds = [
 	'help',
 	'ptrarr',
 	'online_help']
+#TODO: fill 'idl_cmds' with idl cmds
 
 idl_exe = '/home/vitor/workspace/rsi/idl_6.3/bin/idl'
 
-
+#TODO: complete also with defaults: files, dirs, etc.
 def completer(text, state):
 	options = [i for i in idl_cmds if i.startswith(text)]
 	if state < len(options):
@@ -27,16 +28,16 @@ def completer(text, state):
 
 	return None
 
-#TODO: fill 'idl_cmds' with idl cmds
-#TODO: see how to include cmds with a dot at the beginning for tab completion
 
 # initialize readline with customized tab completion support
 readline.parse_and_bind("tab: complete")
 readline.set_completer(completer)
+#TODO: history save and restore
+
 
 # init idl as subprocess and communicate with it through pty
 (master, slave) = pty.openpty()
-p = subprocess.Popen([idl_exe], close_fds=True, shell=False, stdin=slave, stdout=slave, stderr=slave)
+p = subprocess.Popen([idl_exe], close_fds=False, shell=False, stdin=slave, stdout=slave, stderr=slave)
 
 
 def write_idl(input):
@@ -46,10 +47,19 @@ def write_idl(input):
 def read_idl():
 	output = ''
 
-	r, w, e = select.select([master], [], [], 0.05) # check for available output
-	while r != []:
-		output += os.read(master, 10) # blocking read
+	c = True
+
+	while c:
 		r, w, e = select.select([master], [], [], 0.05) # check for available output
+		while r != []:
+			output += os.read(master, 10) # blocking read
+			r, w, e = select.select([master], [], [], 0.05) # check for available output
+
+		# wait for the prompt that arrives after all computation finishes
+		if output.endswith('IDL> '):
+			c = False
+		else:
+			time.sleep(0.5)
 
 	return output
 
@@ -61,7 +71,7 @@ def handle_input(input):
 
 	# check executive command
 	if input.lstrip().startswith('.'): # executive cmd
-		return None #TODO: treat executive command accordingly
+		return '' #TODO: treat executive command accordingly
 
 	return input
 
@@ -106,9 +116,9 @@ while c:
 		write_idl(input)
 		output = read_idl()
 
-		output = handle_output(output)
+		op = handle_output(output)
 		
-		sys.stdout.write(output)
+		sys.stdout.write(op)
 		sys.stdout.flush()
 
 		if input == 'exit':
